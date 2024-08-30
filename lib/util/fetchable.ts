@@ -13,7 +13,11 @@ const fetchable = async (url: string, timeout: number) => {
     if (url.startsWith('file://'))
       return fs.readFile(new URL(url), { signal: controller.signal });
     
-    const res = await fetch(url, { signal: controller.signal });
+    const option = { signal: controller.signal };
+    if (url.indexOf('readpai.com') > 0)
+      option['headers'] = { 'referer':'https://tw.linovelib.com/'};
+    const res = await fetch(url, option);
+    
     if (!res.ok)
       throw new Error(`Got error ${res.status} (${res.statusText}) while fetching ${url}`);
     return res.buffer();
