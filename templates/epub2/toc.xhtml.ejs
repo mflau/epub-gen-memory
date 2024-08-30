@@ -14,8 +14,8 @@
                     <% if(content.author.length){ %>
                     - <small class="toc-author"><%= content.author.join(",") %></small>
                     <% } %>
-                    <% if(content.url){ %><span class="toc-link"><%= content.url %></span><% }%>
                 </a>
+                <% if(content.url){ %><span class="toc-link"><%= content.url %></span><% }%>
             </p>
         <% } %>
     <% }) %>

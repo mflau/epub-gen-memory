@@ -1,18 +1,17 @@
 import { render as renderTemplate } from 'ejs';
-import jszip, { JSZipGeneratorOptions } from 'jszip';
-import { getExtension, getType } from 'mime';
-import ow from 'ow';
-import { Chapter, chapterDefaults, Content, Font, Image, NormChapter, NormOptions, Options, optionsDefaults, optionsPredicate, retryFetch, type, uuid, validateAndNormalizeChapters, validateAndNormalizeOptions } from './util';
+import jszip, { generateAsync, JSZipGeneratorOptions } from 'jszip';
+import mime from 'mime/lite';
+import { Chapter, chapterDefaults, Content, Font, Image, isString, NormChapter, NormOptions, Options, optionsDefaults, retryFetch, type, uuid, validateAndNormalizeChapters, validateAndNormalizeOptions, validateIsOptionsOrTitle, validateIsVarargArray } from './util';
 
 
-export { Options, Content, Chapter, Font, optionsDefaults, chapterDefaults };
+export { Chapter, chapterDefaults, Content, Font, Options, optionsDefaults };
 
 export class EPub {
   protected options: NormOptions;
   protected content: NormChapter[];
   protected uuid: string;
   protected images: Image[] = [];
-  protected cover?: { extension: string, mediaType: string };
+  protected cover?: { extension: string, mediaType: string; };
 
   protected log: typeof console.log;
   protected warn: typeof console.warn;
@@ -26,7 +25,7 @@ export class EPub {
         this.warn = console.warn.bind(console);
         break;
       case false:
-        this.log = this.warn = () => {};
+        this.log = this.warn = () => { };
         break;
       default:
         this.log = this.options.verbose.bind(null, 'log');
@@ -39,10 +38,12 @@ export class EPub {
     this.zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
 
     if (this.options.cover) {
-      const mediaType = getType(this.options.cover);
-      const extension = getExtension(mediaType || '');
+      const fname = isString(this.options.cover) ? this.options.cover : this.options.cover.name;
+      const mediaType = mime.getType(fname);
+      const extension = mime.getExtension(mediaType || '');
       if (mediaType && extension)
         this.cover = { mediaType, extension };
+      else this.warn('Could not detect cover image type from file', fname);
     }
   }
 
@@ -61,7 +62,7 @@ export class EPub {
 
   async genEpub() {
     await this.render();
-    const content = this.zip.generateAsync({
+    const content = this.generateAsync({
       type,
       mimeType: 'application/epub+zip',
       compression: 'DEFLATE',
@@ -73,14 +74,14 @@ export class EPub {
     return content;
   }
 
-  generateAsync(options: JSZipGeneratorOptions) {
+  generateAsync<T extends NonNullable<JSZipGeneratorOptions['type']> = NonNullable<JSZipGeneratorOptions['type']>>(options: JSZipGeneratorOptions<T>): ReturnType<typeof generateAsync<T>> {
     return this.zip.generateAsync(options);
   }
 
   protected async generateTemplateFiles() {
     const oebps = this.zip.folder('OEBPS')!;
     oebps.file('style.css', this.options.css);
-    
+
     this.content.forEach(chapter => {
       const rendered = renderTemplate(this.options.chapterXHTML, {
         lang: this.options.lang,
@@ -152,18 +153,33 @@ export class EPub {
   protected async makeCover() {
     if (!this.cover) return this.log('No cover to download');
     const oebps = this.zip.folder('OEBPS')!;
-    const coverContent = await retryFetch(this.options.cover, this.options.fetchTimeout, this.options.retryTimes, this.log)
-      .catch(reason => (this.warn(`Warning (cover ${this.options.cover}): Download failed`, reason), ''));
-    oebps.file(`cover.${this.cover.extension}`, coverContent);
+
+    if (isString(this.options.cover)) {
+      const coverContent = await retryFetch(this.options.cover, this.options.fetchTimeout, this.options.retryTimes, this.log)
+        .catch(reason => (this.warn(`Warning (cover ${this.options.cover}): Download failed`, reason), ''));
+      oebps.file(`cover.${this.cover.extension}`, coverContent);
+    } else if (typeof this.options.cover.arrayBuffer !== 'undefined') { // node path
+      oebps.file(`cover.${this.cover.extension}`, this.options.cover.arrayBuffer());
+    } else { // browser path
+      const reader = new FileReader();
+      const promise = new Promise((resolve, reject) => {
+        reader.onload = resolve;
+        reader.onerror = reject;
+      });
+      reader.readAsArrayBuffer(this.options.cover);
+      await promise;
+      const coverContent = reader.result as ArrayBuffer;
+      oebps.file(`cover.${this.cover.extension}`, coverContent);
+    }
   }
 }
 
 const epub = (optionsOrTitle: Options | string, content: Content, ...args: (boolean | number)[]) => {
-  ow(optionsOrTitle, ow.any(optionsPredicate, ow.string));
-  const options = ow.isValid(optionsOrTitle, ow.string) ? { title: optionsOrTitle } : optionsOrTitle;
-  ow(args, ow.array.ofType(ow.any(ow.boolean, ow.number)));
+  validateIsOptionsOrTitle(optionsOrTitle);
+  const options = isString(optionsOrTitle) ? { title: optionsOrTitle } : optionsOrTitle;
+  validateIsVarargArray(args);
   args.forEach(arg => {
-    if (ow.isValid(arg, ow.boolean)) options.verbose = arg;
+    if (typeof arg === 'boolean') options.verbose = arg;
     else options.version = arg;
   });
 

@@ -1,4 +1,4 @@
-import { getExtension, getType } from 'mime';
+import mime from 'mime/lite';
 import type { EPub } from '..';
 import { fixHTML } from './html-parse';
 import { uuid } from './other';
@@ -15,12 +15,12 @@ export type Image = {
 function imgSrc(this: EPub, url: string) {
   let image = this.images.find(i => i.url === url);
   if (!image) {
-    const mediaType = getType(url.replace(/\?.*/, "")) || '';
+    const mediaType = mime.getType(url.replace(/\?.*/, "")) || '';
     image = {
       url,
       mediaType,
       id: uuid(),
-      extension: getExtension(mediaType) || '',
+      extension: mime.getExtension(mediaType) || '',
     };
     this.images.push(image);
   }

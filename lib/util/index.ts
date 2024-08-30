@@ -1,6 +1,5 @@
 import { remove as removeDiacritics } from 'diacritics';
-import { getType } from 'mime';
-import ow from 'ow';
+import mime from 'mime/lite';
 import slugify from 'slugify';
 import chapterXHTML2 from 'templates/epub2/chapter.xhtml.ejs';
 import contentOPF2 from 'templates/epub2/content.opf.ejs';
@@ -12,11 +11,12 @@ import css from 'templates/template.css';
 import tocNCX from 'templates/toc.ncx.ejs';
 import type { EPub } from '..';
 import { normalizeHTML } from './html';
-import { Chapter, chapterPredicate, Content, Font, NormChapter, NormOptions, Options, optionsPredicate } from './validate';
+import { isString, validateIsChapters, validateIsOptions, validateIsOptionsOrTitle, validateIsVarargArray } from './predicates';
+import { Chapter, Content, Font, NormChapter, NormOptions, Options } from './validate';
 
 export * from './html';
 export * from './other';
-export { Options, NormOptions, Content, Chapter, NormChapter, Font, optionsPredicate, chapterPredicate };
+export { Chapter, Content, Font, isString, NormChapter, NormOptions, Options, validateIsChapters, validateIsOptions, validateIsOptionsOrTitle, validateIsVarargArray };
 
 
 export const optionsDefaults = (version = 3): Omit<Options, 'title'> => ({
@@ -52,10 +52,10 @@ export const chapterDefaults = (index: number) => ({
 });
 
 
-export const normName = (name: string | string[] | undefined): string[] => ow.isValid(name, ow.string) ? [name] : (name || []);
+export const normName = (name: string | string[] | undefined): string[] => isString(name) ? [name] : (name || []);
 
 export const validateAndNormalizeOptions = (options: Options) => {
-  ow(options, 'options', optionsPredicate);
+  validateIsOptions(options);
 
   // put defaults
   const opt = {
@@ -63,14 +63,14 @@ export const validateAndNormalizeOptions = (options: Options) => {
     ...options,
   } as NormOptions;
   opt.author = normName(opt.author);
-  opt.fonts = opt.fonts.map(font => ({ ...font, mediaType: getType(font.filename)! }));
+  opt.fonts = opt.fonts.map(font => ({ ...font, filename: font.filename.replace(/\s/g, '_').replace(/[^-._A-Za-z0-9]/g, ''), mediaType: mime.getType(font.filename)! }));
   opt.date = new Date(opt.date).toISOString();
   opt.lang = removeDiacritics(opt.lang);
   return opt;
 };
 
 export function validateAndNormalizeChapters(this: EPub, chapters: readonly Chapter[]) {
-  ow(chapters, 'content', ow.array.ofType(chapterPredicate));
+  validateIsChapters(chapters);
 
   let afterTOC = false;
   return chapters.map((chapter, index) => {
@@ -89,12 +89,13 @@ export const validateAndNormalizeChapter = (chapter: Chapter, index: number) => 
     ...chapter,
   } as NormChapter;
 
-  const slug = slugify(ch.title);
+  const slug = slugify(ch.title, { lower: true, strict: true });
   if (!ch.filename) {
     ch.filename = `${index}_${slug}.xhtml`;
   } else if (!ch.filename.endsWith('.xhtml')) {
     ch.filename = `${ch.filename}.xhtml`;
   }
+  ch.filename = ch.filename.replace(/\s/g, '_').replace(/[^-._A-Za-z0-9]/g, '');
   ch.author = normName(ch.author);
   return ch;
 };

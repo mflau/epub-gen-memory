@@ -1,0 +1,31 @@
+<script src="../dist/bundle.js"></script>
+<form id="form">
+  <input id="cover" type="file" name="cover" accept="image/*" />
+  <input type="submit" />
+</form>
+<script>
+  // https://stackoverflow.com/a/18650249/
+  function blobToBase64(blob) {
+    return new Promise((resolve, _) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  (/** @type {HTMLFormElement} */(form)).addEventListener('submit', async e => {
+    e.preventDefault();
+    const inp = (/** @type {HTMLInputElement} */(cover));
+    if (!inp.files.length) return;
+
+    const chapters = [{
+      content: '<html><h1>Test</h1></html>'
+    }];
+    const epub = epubGen.default;
+    const content = await epub({ title: 'test', cover: inp.files[0], verbose: true }, chapters);
+    const link = document.body.appendChild(document.createElement('a'));
+    link.href = await blobToBase64(content);
+    link.download = "download.epub";
+    link.textContent = "Download";
+  });
+</script>

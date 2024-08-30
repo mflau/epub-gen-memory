@@ -107,8 +107,8 @@ protected:
     Publisher name
 - `description`: `string` (optional)  
     Book description
-- `cover`: `string` (optional)  
-    Book cover image URL, e.g. `"http://abc.com/book-cover.jpg"`
+- `cover`: `string | File` (optional)  
+    Book cover image URL, e.g. `"http://abc.com/book-cover.jpg"` or `File` object containing image bytes
 - `tocTitle`: `string` (optional, default `Table of Contents`)  
     Title of the Table of Contents
 - `tocInTOC`: `boolean` (optional, default `true`)  
@@ -179,6 +179,22 @@ You can then use the fonts as such (assuming you have a font with filename `Merr
     src : url(./fonts/Merriweather.ttf);
 }
 ```
+
+## Changelog
+
+_Only includes major changes_
+
+### 1.1.2
+
+- **Fixed file names**  
+  Internal chapter files are no longer given invalid names if the chapter title includes non-alphanumeric characters
+
+### 1.1.0
+
+- **Optionally disable input validation**  
+  In the browser, by default, validation is not bundled due to size. To force use/not use, see the files `lib/util/predicates{-nop}.ts`.
+- **Support `File` for cover**  
+  Useful in the browser to allow user-uploaded files without temporary storage
 
 
 ## Demo Preview:
